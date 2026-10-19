@@ -3,7 +3,7 @@ import type { App } from './app';
 import type { Settings } from '../storage/repo';
 import { removePassphrase, setPassphrase, vaultMode, lock } from '../storage/vault';
 import { canPromptInstall, isInstalled, promptInstall } from './install';
-import { defaultRelays } from '../net/config';
+import { defaultRelays, isRelayUrl, isTurnUrl } from '../net/config';
 
 type Opt<K extends keyof Settings> = { value: Settings[K]; label: string; note: string };
 
@@ -107,6 +107,7 @@ function networkBlock(app: App): HTMLElement {
   const turnUser = h('input', { type: 'text', id: 'turn-user', value: app.settings.turn?.username ?? '', autocapitalize: 'none', spellcheck: 'false' });
   const turnPass = h('input', { type: 'password', id: 'turn-pass', value: app.settings.turn?.credential ?? '' });
   const save = h('button', { class: 'btn', type: 'submit' }, 'Save network settings');
+  const err = h('p', { class: 'form-error', role: 'alert' });
   const form = h(
     'form',
     { class: 'pp-form' },
@@ -118,13 +119,19 @@ function networkBlock(app: App): HTMLElement {
     turnUser,
     h('label', { for: 'turn-pass' }, 'TURN password'),
     turnPass,
+    err,
     h('div', { class: 'row' }, save),
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const list = relays.value.split(/\s+/).map((x) => x.trim()).filter((x) => /^wss:\/\/\S+$/i.test(x));
-    const turn = turnUrl.value.trim() ? { urls: turnUrl.value.trim(), username: turnUser.value.trim(), credential: turnPass.value } : null;
-    await app.updateSettings({ ...app.settings, relays: list, turn });
+    err.textContent = '';
+    const typed = relays.value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+    const bad = typed.filter((x) => !isRelayUrl(x));
+    if (bad.length) return void (err.textContent = `Not a secure relay address (must start with wss://): ${bad[0].slice(0, 60)}`);
+    const t = turnUrl.value.trim();
+    if (t && !isTurnUrl(t)) return void (err.textContent = 'The TURN address must look like turn:host:port or turns:host:port.');
+    const turn = t ? { urls: t, username: turnUser.value.trim(), credential: turnPass.value } : null;
+    await app.updateSettings({ ...app.settings, relays: [...new Set(typed)], turn, hideIp: turn ? app.settings.hideIp : false });
     toast(app.agora.joined ? 'Saved. Leave and re-join the room to use them.' : 'Network settings saved.');
   });
   return h(
@@ -161,8 +168,8 @@ export function safetyView(app: App): HTMLElement {
     ]),
     choice(app, 'location', 'Location', [
       { value: 'off', label: 'Off', note: 'No location at all. The picture itself may still reveal the place.' },
-      { value: 'region', label: '~110 km area', note: 'Only a 1° grid square is saved, roughly a region. Your exact position never leaves the location prompt.' },
-      { value: 'city', label: '~11 km area', note: 'Only a 0.1° grid square, roughly a city. In small towns this can narrow things down: think before sharing.' },
+      { value: 'region', label: '~110 km area', note: 'Only a 1° grid square where the recording starts, roughly a region. It is saved only when a fresh position puts you inside it with a wide margin; otherwise the recording has no location. Your exact position never leaves the location prompt.' },
+      { value: 'city', label: '~11 km area', note: 'Only a 0.1° grid square, roughly a city, saved only when the position is precise enough to be sure. If it isn\'t, the ~110 km square is used, or none. In small towns this can narrow things down: think before sharing.' },
     ]),
     choice(app, 'beacon', 'Public time proof', [
       { value: false, label: 'Off', note: 'Times come from this phone clock only, which anyone could set to any date.' },
@@ -199,9 +206,10 @@ export function safetyView(app: App): HTMLElement {
         h('li', {}, 'The picture can reveal a place, a uniform, a tattoo or a car plate. Only faces are covered.'),
         h('li', {}, 'Very distant or turned-away faces can be missed. Crowd mode helps; it is not perfect.'),
         h('li', {}, 'A file you share stays out there. Share only what you are ready to make public.'),
-        h('li', {}, 'In a live room, the others and the public relays can see your IP address, which reveals your approximate area. Use a VPN if that is a risk.'),
+        h('li', {}, 'In a live room, the others and the public relays can see your IP address, which reveals your approximate area. Use a VPN, or hide your IP with a TURN relay, if that is a risk.'),
+        h('li', {}, 'A recorded area is what your phone measured. VoxPop never makes one up, but it cannot stop software that fakes the phone\'s position.'),
       ),
     ),
-    h('p', { class: 'muted small' }, 'VoxPop 0.2.0. Free and open-source under the GNU AGPL 3.0. No accounts, no ads, no tracking, no money.'),
+    h('p', { class: 'muted small' }, 'VoxPop 0.3.0. Free and open-source under the GNU AGPL 3.0. No accounts, no ads, no tracking, no money.'),
   );
 }

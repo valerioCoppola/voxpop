@@ -5,7 +5,6 @@ import { buildBundle, buildManifest } from '../core/bundle';
 import { concatBytes } from '../core/encoding';
 import { generateSigner, type Signer } from '../core/crypto';
 import type { LocationPrecision } from '../core/geo';
-import { randomName } from '../net/names';
 import type { TurnSetting } from '../net/config';
 import type { Beacon, ChunkRecord, Header, Seal, Signed } from '../core/types';
 import type { VerifyReport } from '../core/verify';
@@ -19,12 +18,12 @@ export interface Settings {
   identity: Header['identity'];
   beacon: boolean;
   camera: 'environment' | 'user';
-  // Agora (live rooms)
-  name: string; // display name shown to others in a room; not an identity
-  room: string; // last room joined
+  // Agora (live rooms). Room names and passwords are never stored.
+  name: string; // a display name the person chose to keep; '' = a fresh random one every room
   saveLive: boolean; // while live in a room, also save the recording on this phone
   relays: string[]; // custom meeting-point relays (empty = defaults)
   turn: TurnSetting | null; // optional relay for networks that block direct connections
+  hideIp: boolean; // connect only through the TURN relay, so room members don't see this phone's IP
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -35,19 +34,22 @@ export const DEFAULT_SETTINGS: Settings = {
   beacon: false,
   camera: 'environment',
   name: '',
-  room: 'agora',
   saveLive: true,
   relays: [],
   turn: null,
+  hideIp: false,
 };
 
 export async function getSettings(): Promise<Settings> {
-  const s = { ...DEFAULT_SETTINGS, ...((await get<Partial<Settings>>('kv', 'settings')) ?? {}) };
-  if (!s.name) {
-    s.name = randomName();
-    await saveSettings(s);
-  }
-  return s;
+  const stored = (await get<Record<string, unknown>>('kv', 'settings')) ?? {};
+  // Only known fields survive: older versions kept the last room name and an
+  // auto-generated display name, which are dropped here.
+  const s = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
+  for (const k of Object.keys(DEFAULT_SETTINGS)) if (k in stored) s[k] = stored[k];
+  if (stored.rememberName !== true && 'room' in stored) s.name = '';
+  const clean = s as unknown as Settings;
+  if (Object.keys(stored).some((k) => !(k in DEFAULT_SETTINGS)) || (stored.name && !clean.name)) await saveSettings(clean);
+  return clean;
 }
 
 export async function saveSettings(s: Settings): Promise<void> {

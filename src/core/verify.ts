@@ -225,7 +225,13 @@ export async function verifyManifest(raw: unknown, video: Uint8Array): Promise<V
     title: 'Audio',
     detail: h.audio === 'original' ? 'Original audio: voices are not disguised.' : h.audio === 'muted' ? 'No audio was recorded.' : 'Voices were pitch-shifted on the device.',
   });
-  checks.push({ level: 'info', title: 'Location', detail: h.cell ? `Coarse area only: ${describeCell(h.cell)}.` : 'No location was shared.' });
+  checks.push({
+    level: 'info',
+    title: 'Location',
+    detail: h.cell
+      ? `Where the recording started: ${describeCell(h.cell)}, as measured by the recording phone. VoxPop writes an area only when a position fix under a minute old places the phone inside it with a wide margin; otherwise it writes none. This proves the phone reported that area, not that its location service was genuine.`
+      : 'No location was shared.',
+  });
 
   return {
     ok: !checks.some((c) => c.level === 'fail'),

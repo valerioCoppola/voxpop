@@ -26,13 +26,16 @@ async function user(viewport: { width: number; height: number }): Promise<Page> 
   return ctx.newPage();
 }
 
-async function joinRoom(page: Page, room: string, saveLive = true) {
+async function joinRoom(page: Page, room: string, saveLive = true, password = '') {
   await page.goto('/#agora');
   await page.locator('#room-name').fill(room);
+  if (password) await page.locator('#room-pass').fill(password);
   if (!saveLive) await page.locator('#save-live').uncheck();
   await page.getByRole('button', { name: 'Join room' }).click();
-  await expect(page.locator('.room-title')).toHaveText(`#${room}`);
+  await expect(page.locator('.room-title')).toHaveText(`#${room}${password ? ' (private)' : ''}`, { timeout: 20_000 });
 }
+
+const roomCode = async (page: Page) => (await page.locator('.room-code').textContent())?.match(/Room code (\S+)\./)?.[1];
 
 async function goLive(page: Page) {
   await page.goto('/#witness');
@@ -104,4 +107,57 @@ test('live only: nothing is saved anywhere, and no copy can be requested', async
   await expect(a.locator('.lede')).toContainText('Nothing recorded');
   await b.goto('/#ledger');
   await expect(b.locator('.lede')).toContainText('Nothing recorded');
+});
+
+test('private rooms: same password meets, wrong password sees nobody, codes tell them apart', async () => {
+  const a = await user({ width: 1000, height: 800 });
+  const b = await user({ width: 390, height: 844 });
+  const c = await user({ width: 390, height: 844 });
+  const room = `private-${Date.now()}`;
+  await joinRoom(a, room, true, 'k7mq-4tzp-9wxr-h2ce');
+  await joinRoom(b, room, true, 'k7mq-4tzp-9wxr-h2ce');
+  await joinRoom(c, room, true, 'k7mq-4tzp-9wxr-WRONG');
+  await expect(a.locator('.room-status')).toHaveText('1 other here', { timeout: 30_000 });
+  await expect(b.locator('.room-status')).toHaveText('1 other here', { timeout: 30_000 });
+  expect(await roomCode(a)).toBe(await roomCode(b));
+  expect(await roomCode(c)).not.toBe(await roomCode(a));
+  // The wrong password never meets them, and nobody sees it in their list.
+  await c.waitForTimeout(6000);
+  await expect(c.locator('.room-status')).toContainText('Waiting for others');
+  await expect(a.locator('.people li')).toHaveCount(2);
+
+  // The public room with the same name is a different, unrelated room.
+  const d = await user({ width: 390, height: 844 });
+  await joinRoom(d, room);
+  await d.waitForTimeout(6000);
+  await expect(d.locator('.room-status')).toContainText('Looking for others');
+});
+
+test('private rooms refuse short passwords', async () => {
+  const a = await user({ width: 390, height: 844 });
+  await a.goto('/#agora');
+  await a.locator('#room-pass').fill('short');
+  await expect(a.locator('#pass-strength')).toContainText('Too short');
+  await a.getByRole('button', { name: 'Join room' }).click();
+  await expect(a.locator('.form-error[role=alert]')).toContainText('at least 8');
+});
+
+test('leaving restarts with a fresh identity, and names are not kept by default', async () => {
+  const a = await user({ width: 390, height: 844 });
+  const b = await user({ width: 390, height: 844 });
+  const room = `fresh-${Date.now()}`;
+  await joinRoom(a, room);
+  await joinRoom(b, room);
+  await expect(b.locator('.people li')).toHaveCount(2, { timeout: 30_000 });
+  const tagBefore = await b.locator('.people li').nth(1).textContent();
+  const nameBefore = await a.locator('.people li').first().locator('strong').textContent();
+
+  await a.getByRole('button', { name: 'Leave room' }).click();
+  await expect(a.locator('#room-name')).toBeVisible({ timeout: 15_000 }); // page restarted on the join form
+  expect(await a.locator('#my-name').inputValue()).not.toBe(nameBefore);
+
+  await a.locator('#room-name').fill(room);
+  await a.getByRole('button', { name: 'Join room' }).click();
+  await expect(b.locator('.people li')).toHaveCount(2, { timeout: 30_000 });
+  await expect.poll(() => b.locator('.people li').nth(1).textContent(), { timeout: 30_000 }).not.toBe(tagBefore);
 });

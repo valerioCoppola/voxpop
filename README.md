@@ -13,14 +13,14 @@ What Witness does, all on the phone:
 - **Voices are disguised.** Pitch is shifted by a random amount chosen per recording and never stored. Or record with no audio at all.
 - **Every 2 seconds of video is signed.** Each piece carries the hash of the piece before it, so removing, editing or reordering anything is detectable by anyone.
 - **Optional public time proof.** A public random number from the [drand](https://drand.love) beacon is burned into the picture, proving the video was made after that moment.
-- **Location is coarse or absent.** Off by default; when on, only an ~11 km or ~110 km grid square is kept. Your exact position is never stored.
+- **Location is true or absent.** Off by default. When on, a recording carries the ~11 km or ~110 km grid square where it started, and only if a position fix under a minute old puts the phone inside that square with a wide margin. If the fix isn't precise enough, the larger square is used, or none at all. Your exact position is never stored.
 - **Encrypted on the device, wiped in two seconds.** Recordings are encrypted at rest, optionally behind a passphrase, and a held "panic wipe" button destroys the keys.
 - **A transparent ledger.** Every recording you hold, yours or received, is listed with all its public facts on an offline world map. Files that fail checks are listed too, but never played.
 - **Works offline once installed.** It is a web app you install from the browser to your home screen. No app store needed.
 
 ## Agora: live rooms
 
-1. Open **Agora** and type a room name (for example `agora`, a city or a cause). Add a password for a private room.
+1. Open **Agora** and type a room name (for example `agora`, a city or a cause). Add a password (8+ characters, or tap **Make one**) for a private, hidden room. Everyone in the same room sees the same **room code**: compare it to be sure you are together.
 2. Everyone who joins with the same name meets there.
 3. Go to **Witness** and press record to **go live**. Everyone in the room sees your covered, voice-disguised picture.
 4. Choose whether your broadcast is also saved on your phone ("When I go live, also save the recording on this phone"). With it off, you only stream: nothing is stored and it uses less battery.
@@ -29,7 +29,8 @@ What Witness does, all on the phone:
 **How people find each other without a server.** Browsers can't discover each other on their own. They need a first "here I am" message. VoxPop sends that message, encrypted, through public **Nostr relays**: free servers run by volunteers worldwide (8 by default, editable in Safety). After that, video flows directly between the devices over WebRTC, end-to-end encrypted. Public STUN servers (Google, Cloudflare) help each device learn its public address. This costs nothing and needs no account anywhere.
 
 **Limits of this version:**
-- Joining a room reveals your IP address to the people in it and to the relays (see SECURITY.md).
+- Joining a room reveals your IP address to the people in it and to the relays, unless you hide it behind a TURN relay (see SECURITY.md).
+- Every room gets a fresh random display name and a fresh network identity: leaving a room restarts the app so two rooms can't be linked to you.
 - Each viewer receives the stream directly from the recorder, so a phone can serve roughly 5–10 viewers before its upload runs out. Passing streams on from viewer to viewer is the next step.
 - Some mobile networks block direct connections. Then two people on different networks may not connect without a TURN relay, which VoxPop does not provide because it costs money; you can add one in Safety. On the same Wi-Fi it always works.
 

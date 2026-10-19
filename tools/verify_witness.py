@@ -316,7 +316,7 @@ def verify(path: str, skip_beacons: bool):
 
         add("warn" if h["faces"] == "unmasked" else "info", "Faces", {"masked": "covered, full-resolution scan", "masked-fast": "covered, fast scan (distant faces may be missed)", "unmasked": "NOT covered"}[h["faces"]])
         add("warn" if h["audio"] == "original" else "info", "Audio", {"disguised": "voices pitch-shifted", "muted": "no audio", "original": "original voices"}[h["audio"]])
-        add("info", "Location", describe_cell(h["cell"]) if h["cell"] else "not shared")
+        add("info", "Location", f"where the recording started, as measured by the recording phone: {describe_cell(h['cell'])}" if h["cell"] else "not shared")
         summary = {"recordingId": h["r"], "key": fp, "start": iso(h["t"]), "end": iso(end),
                    "seconds": round(max(0, end - h["t"]) / 1000, 1), "chunks": len(m["chunks"]), "bytes": off,
                    "sealed": sealed, "earliestProvenTime": iso(earliest) if earliest else None}

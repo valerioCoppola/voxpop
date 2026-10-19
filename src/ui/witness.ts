@@ -22,12 +22,34 @@ function chips(s: SessionStatus, app: App): HTMLElement[] {
   const voice: [string, ChipState] =
     set.audio === 'disguised' ? ['Voice disguised', 'ok'] : set.audio === 'muted' ? ['No audio', 'ok'] : ['Real voice', 'warn'];
 
+  // The chip says exactly what a recording gets: an area that is certain, or nothing.
   let loc: [string, ChipState];
-  if (set.location === 'off') loc = ['No location', 'ok'];
-  else if (s.locationState === 'ok') loc = [set.location === 'city' ? 'Area ~11 km' : 'Area ~110 km', 'ok'];
-  else if (s.locationState === 'locating') loc = ['Finding area', 'busy'];
-  else if (s.locationState === 'unavailable') loc = ['Area unavailable', 'warn'];
-  else loc = [set.location === 'city' ? 'Area ~11 km' : 'Area ~110 km', 'off'];
+  const size = s.cell?.k === 10 ? '~11 km' : '~110 km';
+  switch (s.locationState) {
+    case 'off':
+      loc = ['No location', 'ok'];
+      break;
+    case 'ok':
+      loc = [`Area ${size}`, 'ok'];
+      break;
+    case 'coarser':
+      loc = ['Area ~110 km only (fix not precise enough)', 'warn'];
+      break;
+    case 'moved':
+      loc = [`Left the start area (${size})`, 'warn'];
+      break;
+    case 'locating':
+      loc = s.camera === 'on' ? ['Finding area: not shared yet', 'busy'] : [set.location === 'city' ? 'Area ~11 km' : 'Area ~110 km', 'off'];
+      break;
+    case 'uncertain':
+      loc = ['Area unsure: not shared', 'warn'];
+      break;
+    case 'denied':
+      loc = ['Location blocked: not shared', 'warn'];
+      break;
+    default:
+      loc = ['No position: not shared', 'warn'];
+  }
 
   let time: [string, ChipState];
   if (!set.beacon) time = ['Device clock only', 'off'];
@@ -40,7 +62,7 @@ function chips(s: SessionStatus, app: App): HTMLElement[] {
   const room: [string, ChipState] = !a.joined
     ? ['Not in a room', 'off']
     : s.live
-      ? [`Live to #${a.roomName}, ${a.othersCount} ${a.othersCount === 1 ? 'person' : 'people'}`, 'ok']
+      ? [`Live to #${a.roomName}, ${a.viewers} ${a.viewers === 1 ? 'person' : 'people'}${a.waitingViewers ? ` (+${a.waitingViewers} waiting)` : ''}`, 'ok']
       : [`In #${a.roomName}: record to go live`, 'ok'];
   const roomChip = h('a', { class: `chip ${room[1]}${s.live ? ' live' : ''}`, href: '#agora', title: 'Rooms (Agora)' }, icon('agora'), h('span', {}, room[0]));
   return [roomChip, chip('face', ...faces), chip('voice', ...voice), chip('pin', ...loc), chip('clock', ...time)];
@@ -111,7 +133,7 @@ export function witnessView(app: App): HTMLElement {
       recBtn.disabled = false;
       statusMain.textContent = `${s.live ? 'LIVE' : 'REC'} ${fmtDuration(Date.now() - (s.startedAt ?? Date.now()))}`;
       statusMain.classList.add('live');
-      const viewers = app.agora.othersCount;
+      const viewers = app.agora.viewers;
       statusSub.textContent = s.live
         ? `${viewers} watching${s.saving ? `, ${s.chunksSaved} pieces saved` : ', not saving'}`
         : `${s.chunksSaved} ${s.chunksSaved === 1 ? 'piece' : 'pieces'} signed and saved`;

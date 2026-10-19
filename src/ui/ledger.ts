@@ -44,7 +44,7 @@ async function openDetail(r: RecordingRow, onChange: () => void) {
   const facts: [string, string][] = [
     ['Recorded', fmtDateTime(h0.t)],
     ['Length', fmtDuration(durationOf(r))],
-    ['Area', h0.cell ? describeCell(h0.cell) : 'Not shared'],
+    ['Area at start', h0.cell ? describeCell(h0.cell) : 'Not shared'],
     ['Faces', h0.faces === 'unmasked' ? 'Not covered' : h0.faces === 'masked-fast' ? 'Covered, fast scan' : 'Covered, full scan'],
     ['Audio', h0.audio === 'disguised' ? 'Voices disguised' : h0.audio === 'muted' ? 'No audio' : 'Original voices'],
     ['Signing key', `${fp} (${h0.identity === 'one-time' ? 'one-time' : 'pseudonym'})`],

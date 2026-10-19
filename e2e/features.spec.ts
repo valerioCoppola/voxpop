@@ -26,7 +26,7 @@ async function recordFor(page: Page, ms: number) {
 
 test('time proof, coarse location and map', async ({ page, context }) => {
   await context.grantPermissions(['camera', 'microphone', 'geolocation']);
-  await context.setGeolocation({ latitude: 41.9028, longitude: 12.4964 });
+  await context.setGeolocation({ latitude: 41.9028, longitude: 12.4964, accuracy: 20 }); // GPS-grade fix
   await page.route('https://api.drand.sh/**', (r) => r.fulfill({ json: BEACON, headers: { 'access-control-allow-origin': '*' } }));
   await setOption(page, 'Public time proof', 'On');
   await setOption(page, 'Location', '~11 km area');
@@ -46,6 +46,52 @@ test('time proof, coarse location and map', async ({ page, context }) => {
   await expect(page.locator('.json')).toContainText('"la": 419');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Share file' }).click()]);
   await dl.saveAs(`${OUT}/with-time-proof.voxpop`);
+});
+
+test('location: an imprecise fix is never recorded', async ({ page, context }) => {
+  await context.grantPermissions(['camera', 'microphone', 'geolocation']);
+  await context.setGeolocation({ latitude: 41.9028, longitude: 12.4964, accuracy: 30_000 }); // ±30 km, like an IP guess
+  await setOption(page, 'Location', '~11 km area');
+  await recordFor(page, 2500);
+  await expect(page.locator('.chip', { hasText: 'Area unsure: not shared' })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop recording' }).click();
+  await expect(page.locator('#toast')).toContainText('sealed', { timeout: 15_000 });
+  await page.goto('/#ledger');
+  await expect(page.locator('.list-row').first()).toContainText('No area');
+});
+
+test('location: a fix good only for the large area gives the large area', async ({ page, context }) => {
+  await context.grantPermissions(['camera', 'microphone', 'geolocation']);
+  await context.setGeolocation({ latitude: 41.5, longitude: 12.5, accuracy: 3_000 }); // ±3 km, like cell towers
+  await setOption(page, 'Location', '~11 km area');
+  await recordFor(page, 2500);
+  await expect(page.locator('.chip', { hasText: 'Area ~110 km only' })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop recording' }).click();
+  await expect(page.locator('#toast')).toContainText('sealed', { timeout: 15_000 });
+  await page.goto('/#ledger');
+  await expect(page.locator('.list-row').first()).toContainText('41.5°N 12.5°E (~110 km area)');
+});
+
+test('location: switching it off during a recording keeps the next one without location', async ({ page, context }) => {
+  await context.grantPermissions(['camera', 'microphone', 'geolocation']);
+  await context.setGeolocation({ latitude: 41.9028, longitude: 12.4964, accuracy: 20 });
+  await setOption(page, 'Location', '~11 km area');
+  await recordFor(page, 2500);
+  await expect(page.locator('.chip.ok', { hasText: 'Area ~11 km' })).toBeVisible();
+  // Off, while still recording (Safety, then back to the camera).
+  await setOption(page, 'Location', 'Off');
+  await page.goto('/#witness');
+  await page.getByRole('button', { name: 'Stop recording' }).click();
+  await expect(page.locator('#toast')).toContainText('sealed', { timeout: 15_000 });
+  await expect(page.locator('.chip.ok', { hasText: 'No location' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start recording' }).click();
+  await page.waitForTimeout(2500);
+  await page.getByRole('button', { name: 'Stop recording' }).click();
+  await expect(page.locator('#toast')).toContainText('sealed', { timeout: 15_000 });
+  await page.goto('/#ledger');
+  await expect(page.locator('.list-row')).toHaveCount(2);
+  await expect(page.locator('.list-row').nth(0)).toContainText('No area'); // newest first
+  await expect(page.locator('.list-row').nth(1)).toContainText('41.95°N 12.45°E');
 });
 
 test('interrupted recording is sealed on next start', async ({ page }) => {

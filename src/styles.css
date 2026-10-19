@@ -1056,3 +1056,31 @@ h3.inline {
 a.btn {
   text-decoration: none;
 }
+
+/* --- joining safety (v0.3) --- */
+.hint.warn-text {
+  color: var(--amber);
+  font-weight: 600;
+}
+.pass-row {
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.pass-row input {
+  flex: 1;
+  min-width: 0;
+}
+.room-code {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  max-width: 44rem;
+}
+.seat-line {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+.restart {
+  max-width: 44rem;
+}

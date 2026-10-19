@@ -3,7 +3,7 @@ import { VoiceChain } from './voice';
 import { fetchLatestBeacon } from '../core/beacon';
 import { exportPublicKey } from '../core/crypto';
 import { randomHex } from '../core/encoding';
-import { locateCell } from '../core/geo';
+import { AreaWatcher, areaFor, leftCell, type AreaState } from '../core/geo';
 import { APP_VERSION, type Beacon, type Cell, type Header } from '../core/types';
 import { RecordingSink, signerFor, type RecordingRow, type Settings } from '../storage/repo';
 import type { Agora } from '../net/agora';
@@ -22,8 +22,12 @@ export interface SessionStatus {
   saving: boolean; // writing a signed recording on this phone
   pipeline: PipelineStats;
   beacon: { state: 'off' | 'fetching' | 'ok' | 'failed'; round: number | null };
+  /**
+   * Before recording: the area a recording started now would carry (or none).
+   * While recording: the area written into its signed header (or none).
+   */
   cell: Cell | null;
-  locationState: 'off' | 'locating' | 'ok' | 'unavailable';
+  locationState: AreaState | 'moved';
   error: string | null;
 }
 
@@ -50,6 +54,8 @@ export class WitnessSession {
   private beaconAbort: AbortController | null = null;
   private stopResolve: ((row: RecordingRow | null) => void) | null = null;
   private liveOnlyStop: (() => Promise<void>) | null = null;
+  private area = new AreaWatcher();
+  private recordingCell: { cell: Cell | null; state: AreaState } | null = null;
   /** Set by the app: the room we are in, if any. */
   agora: Agora | null = null;
   status: SessionStatus;
@@ -79,6 +85,33 @@ export class WitnessSession {
       this.emit();
     };
     this.pipeline.setOverlay(() => this.overlayLines());
+    this.area.onChange = () => this.updateArea();
+  }
+
+  /** Keeps the location chip truthful as fixes arrive or settings change. */
+  private updateArea() {
+    const now = Date.now();
+    if (this.recordingCell) {
+      const { cell, state } = this.recordingCell;
+      this.status.cell = cell;
+      // 'locating' at the start means this recording carries no area at all.
+      this.status.locationState = cell && leftCell(cell, this.area.fix, now) ? 'moved' : state === 'locating' ? 'unavailable' : state;
+    } else {
+      const a = areaFor(this.settings.location, this.area.fix, now, this.area.state);
+      this.status.cell = a.cell;
+      this.status.locationState = a.state;
+    }
+    this.emit();
+  }
+
+  /** Location runs only while the camera is on and the setting asks for it. */
+  private syncArea() {
+    if (this.settings.location === 'off' || this.status.camera !== 'on') {
+      if (!this.recordingCell || this.status.camera !== 'on') this.area.stop();
+    } else {
+      this.area.start(this.settings.location === 'city');
+    }
+    this.updateArea();
   }
 
   private emit() {
@@ -122,21 +155,8 @@ export class WitnessSession {
         this.emit();
       });
     }
-    void this.refreshLocation();
+    this.syncArea();
     this.startBeacon();
-  }
-
-  private async refreshLocation() {
-    if (this.settings.location === 'off') {
-      this.status.cell = null;
-      this.status.locationState = 'off';
-      return this.emit();
-    }
-    this.status.locationState = 'locating';
-    this.emit();
-    this.status.cell = await locateCell(this.settings.location);
-    this.status.locationState = this.status.cell ? 'ok' : 'unavailable';
-    this.emit();
   }
 
   private startBeacon() {
@@ -200,7 +220,8 @@ export class WitnessSession {
       this.status.saving = false;
       this.status.startedAt = null;
       this.status.rid = null;
-      this.emit();
+      this.recordingCell = null;
+      this.syncArea(); // settings may have changed during the recording
     };
 
     if (!saving) {
@@ -221,6 +242,8 @@ export class WitnessSession {
     }
 
     const rid = randomHex(16);
+    // The area is decided now, from the current setting and a fix under a minute old.
+    const area = areaFor(this.settings.location, this.area.fix, Date.now(), this.area.state);
     const signer = await signerFor(this.settings.identity);
     const header: Header = {
       v: 1,
@@ -230,7 +253,7 @@ export class WitnessSession {
       pub: await exportPublicKey(signer.publicKey),
       mime,
       t: startedAt,
-      cell: this.status.cell,
+      cell: area.cell,
       app: APP_VERSION,
       identity: this.settings.identity,
       faces: this.settings.faces,
@@ -275,6 +298,8 @@ export class WitnessSession {
     rec.onerror = () => {
       if (rec.state !== 'inactive') rec.stop();
     };
+    this.recordingCell = area;
+    this.updateArea();
     this.status.recording = true;
     this.status.live = live;
     this.status.saving = true;
@@ -302,7 +327,7 @@ export class WitnessSession {
     this.pipeline.setMode(s.faces);
     if (s.faces !== 'unmasked' && this.status.camera === 'on') void this.pipeline.loadDetector().catch(() => {});
     if (this.status.recording) return; // other changes apply to the next recording
-    if (locChanged && this.status.camera === 'on') void this.refreshLocation();
+    if (locChanged) this.syncArea();
     if (beaconChanged) {
       this.stopBeacon();
       if (this.status.camera === 'on') this.startBeacon();
@@ -328,6 +353,8 @@ export class WitnessSession {
     this.video.srcObject = null;
     this.stopBeacon();
     this.status.camera = 'off';
+    this.area.stop();
+    this.updateArea();
     this.emit();
   }
 

@@ -1,7 +1,7 @@
 import type { SigAlg } from './crypto';
 
 export const FORMAT = 'voxpop-witness/1';
-export const APP_VERSION = 'voxpop 0.2.0';
+export const APP_VERSION = 'voxpop 0.3.0';
 
 /**
  * Coarse location cell. Integers only (signed data never contains floats):
