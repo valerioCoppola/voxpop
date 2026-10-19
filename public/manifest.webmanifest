@@ -1,0 +1,22 @@
+{
+  "name": "VoxPop",
+  "short_name": "VoxPop",
+  "description": "Record what is happening, with faces covered and voices disguised on your phone. Every recording is signed and can be checked by anyone.",
+  "id": "./",
+  "start_url": "./#witness",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0E1A24",
+  "theme_color": "#0E1A24",
+  "categories": ["news", "social", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "file_handlers": [
+    { "action": "./#verify", "accept": { "application/zip": [".voxpop"] } }
+  ]
+}

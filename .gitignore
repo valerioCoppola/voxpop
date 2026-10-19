@@ -1,0 +1,12 @@
+node_modules/
+dist/
+public/vendor/
+.venv/
+__pycache__/
+*.pyc
+test-results/
+e2e-output/
+playwright-report/
+*.voxpop
+.DS_Store
+!tests/fixtures/*.voxpop

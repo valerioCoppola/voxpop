@@ -1,0 +1,45 @@
+{
+  "name": "voxpop",
+  "version": "0.2.0",
+  "description": "VoxPop \u2014 a free, open, decentralized agora for live political video. This release ships Witness mode: anonymous, verifiable, tamper-evident recording that runs entirely on your device.",
+  "license": "AGPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "node scripts/copy-assets.mjs",
+    "dev": "npm run assets && vite",
+    "build": "npm run assets && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "start": "npm run build && vite preview",
+    "test": "vitest run",
+    "test:e2e": "VITE_VOXPOP_RELAYS=ws://localhost:7777 VITE_VOXPOP_ICE=none npm run build && playwright test",
+    "typecheck": "tsc --noEmit",
+    "test:py": "python -m unittest tools/test_verify_witness.py",
+    "phone": "npm run build && node scripts/phone.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "2.0.1",
+    "@noble/hashes": "2.0.1",
+    "@trystero-p2p/core": "0.26.0",
+    "fflate": "0.8.2",
+    "onnxruntime-web": "1.30.0",
+    "topojson-client": "3.1.0",
+    "trystero": "0.26.0",
+    "world-atlas": "2.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/topojson-client": "3.1.5",
+    "@types/ws": "8.18.2",
+    "@vitejs/plugin-basic-ssl": "2.2.0",
+    "fake-indexeddb": "6.2.4",
+    "qrcode": "1.5.4",
+    "typescript": "5.9.3",
+    "vite": "7.1.12",
+    "vitest": "3.2.4",
+    "ws": "8.18.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
